@@ -1,0 +1,263 @@
+---
+title: "Homework1"
+author: "Mehmet Akif Taşcıoğlu - IE360 - Spring21"
+date: "07 04 2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(data.table)
+library(dplyr)
+library(zoo)
+library(ggplot2)
+library(readxl)
+library(GGally)
+library(skimr)
+library(ggcorrplot)
+library(lubridate)
+```
+# Data Visualization and Analysis of Three  Time Series From Turkey 
+
+## 1) Monthly Housing Loan Interest Rate Over 2016-2021
+
+Many people take housing loans from banks in Turkey every year to buy a house.
+This measure’s data set consists of monthly reported values of housing loan interest rate in Turkey.The data is taken from Electronic Data Delivery System of the TCMB. Here is the plot:
+
+```{r echo=FALSE, include=TRUE}
+loan <- read_excel("C:/Users/User/Desktop/ie360/housingloan.xlsx")
+
+i = 1
+while(i<=length(loan[["Tarih"]])){
+  loan[i,"Tarih"] <- substr(loan[i,"Tarih"],1,4)
+  i = i+1
+}
+ggplot(loan, aes(x=Faiz,)) +geom_histogram(binwidth = 0.1)+ facet_grid(Tarih~.)
+
+```
+
+When we plot the histogram we can see that there is a more stable and lower interest rate in 2016 and 2017.Interest rates have seen very high levels in the second half of 2018  and the beginning of 2019. This jump in housing loan interest rate is most likely due to the exchange rate boom.Then,from mid 2019 to mid 2020, there was a decline in housing loan interest rate.The reason for this decline is the economic policies implemented by the government.But unfortunately,due to the non-structural economic reforms,the interest rates started to rise again.
+```{r echo=FALSE, include=TRUE}
+loanplot<-read_excel("C:/Users/User/Desktop/ie360/housingloan.xlsx")
+loanplot$Tarih <- as.yearmon(loanplot$Tarih)
+plot(loanplot$Tarih,loanplot$Faiz , type = "l", ylab = "Interest Rate (%)", xlab = "Months")
+
+```
+
+The timeline is seen more clearly in this plot.There isn't a monthly or quarterly similarity over the years.There isn't yearly cyclical pattern.
+
+```{r echo=FALSE, include=TRUE}
+loanbox <- read_excel("C:/Users/User/Desktop/ie360/housingloan.xlsx")
+
+i = 1
+while(i<=length(loanbox[["Tarih"]])){
+  loanbox[i,"Tarih"] <- substr(loanbox[i,"Tarih"],1,4)
+  i = i+1
+}
+ggplot(loanbox, aes(x=Faiz,)) +geom_boxplot()+ facet_grid(Tarih~.)
+```
+
+With the boxplot, the trends and fluctuations can be seen more clearly.Sharp increasing trend is obvious from 2017 until 2020.It is seen that the years with the most fluctuations are 2018 and 2019.Year 2017 is the most stable year over 2016-2021.In the first half of 2020,there is a downtrend.However,increase trend started again in the second half of 2020.
+
+
+## 2) Monthly Housing Price Index Over 2016-2021
+
+A price index (PI) is a measure of how prices change over a period of time, or in other words, it is a way to measure inflation.A house price index (HPI) measures the price changes of residential housing as a percentage change from some specific base date (which has HPI of 100).Data of this example also comes from Electronic Data Delivery System of the TCMB.Here is the plot:
+
+
+```{r echo=FALSE, include=TRUE}
+price<- read_excel("C:/Users/User/Desktop/ie360/konutfiyatendeksi.xlsx")
+
+i = 1
+while(i<=length(price[["Tarih"]])){
+  price[i,"Tarih"] <- substr(price[i,"Tarih"],1,4)
+  i = i+1
+}
+ggplot(price, aes(x=endeks,)) +geom_histogram(binwidth = 0.4)+ facet_grid(Tarih~.)
+
+```
+
+There is an increasing trend throughout 5 year.The monthly house price indices values of year 2020 have become more spread.
+
+```{r echo=FALSE, include=TRUE}
+priceplot<- read_excel("C:/Users/User/Desktop/ie360/konutfiyatendeksi.xlsx")
+priceplot$Tarih <- as.yearmon(priceplot$Tarih)
+plot(priceplot$Tarih,priceplot$endeks, type = "l", ylab = "Price Index", xlab = "Months")
+
+```
+
+Between mid 2018 and mid 2019, it stopped its rise.During this period, foreign currency
+rapid increase in prices, high inflation and consumers curbing demand due to the various expectations were effective.The strongest uptrend is in the period from mid-2020 to 2021.
+
+```{r echo=FALSE, include=TRUE}
+pricebox<- read_excel("C:/Users/User/Desktop/ie360/konutfiyatendeksi.xlsx")
+
+i = 1
+while(i<=length(pricebox[["Tarih"]])){
+  pricebox[i,"Tarih"] <- substr(pricebox[i,"Tarih"],1,4)
+  i = i+1
+}
+ggplot(pricebox, aes(x=endeks,)) +geom_boxplot()+ facet_grid(Tarih~.)
+```
+
+From the boxplots, same ideas can be drawn.There is a wide range of values for the year 2020.For the year 2018, values are closer to each other indicating stability.
+
+## 3) Monthly Dollar Exchange Rate Over 2016-2021
+
+Data of this example also comes from Electronic Data Delivery System of the TCMB.Here is the plot:
+
+```{r echo=FALSE, include=TRUE}
+dolar<- read_excel("C:/Users/User/Desktop/ie360/dolarkurları.xlsx")
+i = 1
+while(i<=length(dolar[["Tarih"]])){
+  dolar[i,"Tarih"] <- substr(dolar[i,"Tarih"],1,4)
+  i = i+1
+}
+ggplot(dolar, aes(x=Kur,)) +geom_histogram(binwidth = 0.03)+ facet_grid(Tarih~.)
+
+```
+
+The exchange rate peaked in the years 2018 and 2020.The year 2019 is like a relatively flat between two peaks.
+
+```{r echo=FALSE, include=TRUE}
+dolarplot<- read_excel("C:/Users/User/Desktop/ie360/dolarkurları.xlsx")
+dolarplot$Tarih <- as.yearmon(dolarplot$Tarih)
+plot(dolarplot$Tarih,dolarplot$Kur, type = "l", ylab = "Exchange Rate", xlab = "Months")
+
+```
+
+There is usually an increasing trend, but sometimes it slows and sometimes it is fast.In some periods, exchange rate has stagnated or declined slightly due to the government intervention.There is no repetitive monthly or quarterly movement for all 5 years.In other words,there is no specific month or quarter in which it rises or falls within each year.
+
+```{r echo=FALSE, include=TRUE}
+dolarbox<- read_excel("C:/Users/User/Desktop/ie360/dolarkurları.xlsx")
+
+i = 1
+while(i<=length(dolarbox[["Tarih"]])){
+  dolarbox[i,"Tarih"] <- substr(dolarbox[i,"Tarih"],1,4)
+  i = i+1
+}
+ggplot(dolarbox, aes(x=Kur,)) +geom_boxplot()+ facet_grid(Tarih~.)
+```
+
+In the boxplot,We can see the fluctuations as the outliers or large interquartile range(IQR).But our two indicators(outliers and high IQR) speak of different types of fluctuations.Outliers say that values over only a few periods fluctuate while most values remain stable and close.We see this situation in 2016.High IQR indicates that most of the values are dispersed.We see high IQR in 2018 and 2020.
+
+# Google Trends
+  Search Keyword: " satılık ev"
+  
+```{r echo=FALSE, include=TRUE}
+  
+satilik <-read.csv("C:/Users/User/Desktop/ie360/googletrend.csv")
+i = 1
+while(i<=length(satilik[["Hafta"]])){
+  satilik[i,"Hafta"] <- substr(satilik[i,"Hafta"],1,4)
+  i = i+1
+}
+
+ggplot(satilik, aes(x=volume,)) +geom_boxplot()+ facet_grid(Hafta~.)
+  
+```
+
+This data comes from Google trends,so we have search volume of 'satılık ev'.We will compare these trend values with the three series we have previously reviewed.Before 2020, there is no upward and downward trend except for small changes.There was a sharp rise in 2020.Also,there is a wide range of values for the year 2020.
+If we examine for the year 2020, housing loan interest rate sharply decreased and dollar exchange rate sharply increased.This information shows that there should be huge increases in housing demands in 2020 because most people either take a housing loan or sell their gold to buy a house.Housing  loan interest rates have fallen and gold prices have increased due to the rise in the dollar exchange  rate, which is an opportunity for those who want to buy a house.We can see that there was an increase in house demand in 2020 from the increase in search volume in 2020.If we come to the relationship between the Housing Price Index and the Google search volume in 2020, the increase in the demand for houses in the public has increased the house prices.We see very clearly that in housing  price index, there was a huge increase in 2020.As a result,these three series are consistent with google trend values for 2020.
+
+The situation in 2017 is similar to that of 2020, in the same way, housing loan interest rates have fallen and the dollar exchange rate has increased.However,apart from these two variables(dollar exchange rate and housing loan interest rate) in our model, there are many variables that affect house demands.Therefore,search volume increased  in 2017, but not as obvious as in 2020.
+
+## Line Plot of the Search Volume 
+
+```{r echo=FALSE, include=TRUE}
+satilik <-read.csv("C:/Users/User/Desktop/ie360/googletrend.csv")
+dolar<- read_excel("C:/Users/User/Desktop/ie360/dolarkurları.xlsx")
+i = 1
+while(i<=length(satilik[["Hafta"]])){
+  satilik[i,"Hafta"] <- substr(satilik[i,"Hafta"],1,7)
+  i = i+1
+}
+searchvolume <- vector(mode = "numeric", length = 0)
+for(j in dolar$Tarih ){
+  toplam=0
+  counter=0
+  w=0
+  for(z in satilik$Hafta){
+  w=w+1
+    if(j==z){
+       toplam=toplam + satilik$volume[w]
+       counter=counter+1
+    }
+    
+  }
+  
+  ortalama=toplam/counter
+ searchvolume <- c(searchvolume,ortalama)
+ 
+}
+Tarih<-dolar$Tarih
+trend <- data.frame(Tarih,searchvolume)
+trend$Tarih <- as.yearmon(trend$Tarih)
+plot(trend$Tarih,trend$searchvolume, type = "l", ylab = "volume", xlab = "Date")
+
+
+```
+
+## Scatter Plots
+
+```{r echo=FALSE, include=TRUE}
+satilik <-read.csv("C:/Users/User/Desktop/ie360/googletrend.csv")
+dolar<- read_excel("C:/Users/User/Desktop/ie360/dolarkurları.xlsx")
+price<- read_excel("C:/Users/User/Desktop/ie360/konutfiyatendeksi.xlsx")
+loan <- read_excel("C:/Users/User/Desktop/ie360/housingloan.xlsx")
+i = 1
+while(i<=length(satilik[["Hafta"]])){
+  satilik[i,"Hafta"] <- substr(satilik[i,"Hafta"],1,7)
+  i = i+1
+}
+searchvolume <- vector(mode = "numeric", length = 0)
+for(j in dolar$Tarih ){
+  toplam=0
+  counter=0
+  w=0
+  for(z in satilik$Hafta){
+  w=w+1
+    if(j==z){
+       toplam=toplam + satilik$volume[w]
+       counter=counter+1
+    }
+    
+  }
+  
+  ortalama=toplam/counter
+ searchvolume <- c(searchvolume,ortalama)
+ 
+}
+Tarih<-dolar$Tarih
+trend <- data.frame(Tarih,searchvolume)
+ggplot(trend, aes(x = loan$Faiz, y = searchvolume))+
+  geom_point()+
+  geom_smooth(method = lm)+labs(title = "Search Volume for 'satılık ev' vs Housing Loan Interest Rate", y = "searchvolume", x = "Interest Rates")
+
+
+```
+```{r echo=FALSE, include=TRUE}
+ggplot(trend, aes(x = dolar$Kur, y = searchvolume))+
+  geom_point()+
+  geom_smooth(method = lm)+labs(title = "Search Volume for 'satılık ev' vs Dollar Exchange Rate ", y = "searchvolume", x = "Exchange Rates")
+```
+```{r echo=FALSE, include=TRUE}
+ggplot(trend, aes(x = price$endeks, y = searchvolume))+
+  geom_point()+
+  geom_smooth(method = lm)+labs(title = "Search Volume for 'satılık ev' vs Housing Price Index ", y = "searchvolume", x = "Price Index")
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
