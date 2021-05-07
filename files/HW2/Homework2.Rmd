@@ -1,0 +1,327 @@
+---
+title: "Homework 2"
+author: "Mehmet Akif Taşcıoğlu"
+date: "25 04 2021"
+output: html_document
+---
+# Introduction
+Housing is one of the most important necessity of human beings. Probably a majority of people sell or buy a residential property at least once in a lifetime.Therefore,housing market is obviously enormous.In this homework, the data of the number of house sales (total) in Turkey is fitted using linear regression.Different relevant data series and other components such as trend and monthly seasonal dummy variables are used for fitting the data in a linear regression model.The total number of house sales  can be affected by various economic factors.All data are monthly and taken from Electronic Data Delivery System of the TCMB.The time interval of interest is January 2015-March 2021.My aim is to provide a forecast of 2021-04.
+
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(data.table)
+library(dplyr)
+library(zoo)
+library(ggplot2)
+library(readxl)
+library(GGally)
+library(skimr)
+library(ggcorrplot)
+library(lubridate)
+library(forecast)
+```
+
+
+
+# Data Analysis
+
+
+```{r, include=TRUE, echo=FALSE}
+house<-data.table(read_excel("C:/Users/User/Desktop/ie360/TotalHouseSales.xlsx"))
+ggplot(house, aes(x=sales)) +
+  geom_histogram(aes(y=..density..),colour="blue", fill="lightskyblue", bins = 8)+ 
+  geom_density(alpha=.2, fill="firebrick2", colour="brown") +
+  labs(title = "Histograms of Total Number of House Sales in Turkey over 01/2015 - 03/2021 observed Monthly", 
+       x = "Number of House Sales",
+       y = "Density") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+
+```
+
+The histogram reveals that the monthly number of house sales seem to be distributed similar to a normal distribution.
+
+```{r, include=TRUE, echo=FALSE}
+house[,date:= as.yearmon(Date)]
+ggplot(house,aes(x=date,y=sales))+ geom_line(colour = "firebrick2",size = 1.5)+ theme_dark()
+
+```
+
+First of all,there isn't  an up trend or down  trend throughout 6 year.So,the Trend component most  probably  will be a non-significant predictor.Fluctuations occurred within each year, while fluctuating within a certain narrow band until 2019, the amplitude of the fluctuations increased a lot after 2019.Moreover, January data is almost always low,and December data is almost always high.This means that there is some kind of seasonality in our data, and it should be included in our model using monthly seasonal dummy variables.In the middle of 2016, there is a sudden drop because of Turkish coup attempt.In addition to these,great deviations can be seen after March 2020 due to the COVID-19.
+
+
+# Setting Up Linear Regression Model
+
+
+```{r}
+house[,trend:=1:.N]
+house_reg=lm(sales~trend,house)
+summary(house_reg)
+
+```
+
+```{r}
+house[,trend_constant:=predict(house_reg,house)]
+ggplot(house,aes(x=date))+geom_line(aes(y=sales,color='real'),size=1.5)+geom_line(aes(y=trend_constant,color='trend'),size=1.5)+ theme_dark()
+
+```
+
+
+```{r}
+house[,mon:=as.character(month(date,label=T))]
+house_reg2=lm(sales~trend+mon,house)
+summary(house_reg2)
+
+```
+
+
+```{r}
+house[,trend_constant_monthly_seas:=predict(house_reg2,house)]
+ggplot(house,aes(x=date))+geom_line(aes(y=sales,color='real'),size=1.5)+geom_line(aes(y=trend_constant_monthly_seas,color='predicted'),size=1.5)+ theme_dark()+labs(title = "Actual vs Predicted Total Number of House Sales")
+
+```
+
+## Adding New Variables
+
+### Adding housing loan interest rate as a predictor
+
+```{r}
+interestrate<-read_excel("C:/Users/User/Desktop/ie360/HousingLoanInterestRate.xlsx")
+ggplot(house,aes(x=interestrate$faiz,y=sales))+geom_point()+geom_smooth(method = lm)+labs(title = "Total Number of House Sales vs Housing Loan Interest Rate", y = "Sales", x = "Interest Rate")
+
+
+```
+
+### Correlation between target variable and Housing Loan Interest Rate 
+
+```{r}
+cor(house$sales,interestrate$faiz)
+
+```
+
+
+```{r}
+house[,faiz:=interestrate$faiz]
+house_reg3=lm(sales~trend+mon+faiz,house)
+summary(house_reg3)
+
+```
+
+
+```{r}
+checkresiduals(house_reg3$residuals)
+
+```
+
+
+### Adding Dollar Exchange Rate as a predictor
+
+```{r}
+dolar<-read_excel("C:/Users/User/Desktop/ie360/DollarExchangeRate.xlsx")
+ggplot(house,aes(x=dolar$kur,y=sales))+geom_point()+geom_smooth(method = lm)+labs(title = "Total Number of House Sales vs Dollar Exchange Rate", y = "Sales", x = "Exchange Rate")
+
+```
+
+### Correlation between target variable and Dollar Exchange Rate
+
+```{r}
+cor(house$sales,dolar$kur)
+
+```
+
+### Adding 'Probability of Borrowing Money' as a predictor
+
+This variable shows the probability of borrowing money for basic necessities of people who participated in this survey.Borrowing for basic needs shows that people cannot meet even their basic needs .It is not possible for people to buy a house during such economic difficulties.Therefore,there will be a negative correlation between them.
+
+```{r}
+borrow<-read_excel("C:/Users/User/Desktop/ie360/ProbOfBorrowingMoney.xlsx")
+ggplot(house,aes(x=borrow$probability,y=sales))+geom_point()+geom_smooth(method = lm)+labs(title = "Total Number of House Sales vs Probability Of Borrowing Money", y = "Sales", x = "probability")
+
+```
+
+### Correlation between target variable and Probability of Borrowing Money
+
+```{r}
+cor(house$sales,borrow$probability)
+```
+
+
+```{r}
+house[,prob:=borrow$probability]
+house[,kur:=dolar$kur]
+house_reg4=lm(sales~mon+faiz+prob+kur,house)
+summary(house_reg4)
+
+```
+
+### Adding 'Probability of Buying Home' as a predictor
+
+In Central Bank of the Republic of Turkey’s (CBRT) database, Probability of Buying Home can be obtained under the tab “Surveys”.This variable shows how percentage of the people surveyed had the idea of buying a home.
+
+```{r}
+buying<-read_excel("C:/Users/User/Desktop/ie360/ProbOfBuyingHomeSurvey.xlsx")
+ggplot(house,aes(x=buying$probability,y=sales))+geom_point()+geom_smooth(method = lm)+labs(title = "Total Number of House Sales vs Probability Of Buying Home", y = "Sales", x = "probability")
+
+```
+
+### Correlation between target variable and Probability of Buying Home
+
+```{r}
+cor(house$sales,buying$probability)
+
+```
+
+Correlation value between them is very low so it isn't good predictor.
+
+### Adding Gold Price as a predictor
+
+```{r}
+gold<-read_excel("C:/Users/User/Desktop/ie360/goldprice.xlsx")
+ggplot(house,aes(x=gold$price,y=sales))+geom_point()+geom_smooth(method = lm)+labs(title = "Total Number of House Sales vs Gold Price ", y = "Sales", x = "Price")
+```
+
+### Correlation between target variable and Gold Price
+
+```{r}
+cor(house$sales,gold$price)
+```
+
+
+```{r}
+house[,altın:=gold$price]
+house_reg5=lm(sales~mon+faiz+prob+kur+altın,house)
+summary(house_reg5)
+
+```
+
+### Adding Survey Data as a predictor
+
+The Survey question is  'How has your business situation developed over the past 3 months? '.Survey results will give us the business statement over the past three months  of people who own a business .
+
+```{r}
+survey1<-read_excel("C:/Users/User/Desktop/ie360/business.xlsx")
+ggplot(house,aes(x=survey1$sit,y=sales))+geom_point()+geom_smooth(method = lm)+labs(title = "Total Number of House Sales vs Business Situation ", y = "Sales", x = "Situation")
+```
+
+### Correlation between target variable and Business Situation
+
+```{r}
+cor(house$sales,survey1$sit)
+```
+
+### Adding Survey Data as a predictor
+
+The survey question is 'How do you expect the demand for your company's services to (turnover) change over the next 3 months?'.The survey results will give us the turnover expectations for the next three months of the people who own the business .
+
+```{r}
+survey2<-read_excel("C:/Users/User/Desktop/ie360/business2.xlsx")
+ggplot(house,aes(x=survey2$sit,y=sales))+geom_point()+geom_smooth(method = lm)+labs(title = "Total Number of House Sales vs Expectations of Turnover Change ", y = "Sales", x = "Change")
+```
+
+### Correlation between target variable and Expectations of Turnover Change
+
+```{r}
+cor(house$sales,survey2$sit)
+```
+
+
+```{r}
+house[,sur1:=survey1$sit]
+house[,sur2:=survey2$sit]
+house_reg6=lm(sales~mon+prob+altın+sur1+sur2+faiz,house)
+summary(house_reg6)
+
+```
+
+
+```{r}
+house[,predictedvalues:=predict(house_reg6,house)]
+ggplot(house,aes(x=date))+geom_line(aes(y=sales,color='real'),size=1.5)+geom_line(aes(y=predictedvalues,color='predicted'),size=1.5)+ theme_dark()+labs(title = "Actual vs Predicted Total Number of House Sales")
+
+```
+
+### Adding Housing Unit Price in Turkey as a predictor
+
+
+```{r}
+housing<-read_excel("C:/Users/User/Desktop/ie360/HousingUnitPrice.xlsx")
+ggplot(house,aes(x=housing$price,y=sales))+geom_point()+geom_smooth(method = lm)+labs(title = "Total Number of House Sales vs Housing Unit Price ", y = "Sales", x = "Price")
+
+```
+
+
+### Correlation between target variable and Housing Unit Price
+
+```{r}
+cor(house$sales,housing$price)
+```
+
+
+```{r}
+house[,unitprice:=housing$price]
+house_reg7=lm(sales~mon+prob+altın+sur1+sur2+faiz+unitprice,house)
+summary(house_reg7)
+
+```
+
+
+```{r}
+house[,predictedvalues2:=predict(house_reg7,house)]
+ggplot(house,aes(x=date))+geom_line(aes(y=sales,color='real'),size=1.5)+geom_line(aes(y=predictedvalues2,color='predicted'),size=1.5)+ theme_dark()+labs(title = "Actual vs Predicted Total Number of House Sales")
+
+```
+
+
+```{r}
+house[Date=="2016-07",coup := 1]
+house[is.na(coup) == T,coup := 0]
+house[Date=="2020-04" | Date =="2020-05",Corona_starting_effect := 1]
+house[is.na(Corona_starting_effect) == T,Corona_starting_effect := 0]
+house[Date=="2020-06" | Date =="2020-07" | Date =="2020-08",Corona_ongoing_effect := 1]
+house[is.na(Corona_ongoing_effect) == T,Corona_ongoing_effect := 0]
+```
+
+After the addition of the period of coup attempt and corona effects to model, Model is improved significantly and is good enough to make predictions for next month.
+At the beginning of the pandemic, it was thought to be an epidemic that would pass in a short time, so people did not change their long-term plans in life.Therefore, the virus has reduced number of house  sales in two months after its first appearance in March in Turkey.
+By June, the number of cases and deaths of the epidemic reached high levels, and people understood that the epidemic would take a long time.When people realized that the epidemic would continue for a long time, they changed their long-term life plans.Among these long-term life plans, including the housing plan and also due to the distance measures of the epidemic, people started to buy detached houses.Of course, this increased the number of house  sales tremendously in June, July and August.
+
+
+
+```{r}
+house_reg8=lm(sales~mon+prob+altın+sur1+sur2+faiz+unitprice+as.factor(coup)+as.factor(Corona_starting_effect)+as.factor(Corona_ongoing_effect),house)
+summary(house_reg8)
+
+```
+
+
+```{r}
+house[,predictedvalues3:=predict(house_reg8,house)]
+ggplot(house,aes(x=date))+geom_line(aes(y=sales,color='real'),size=1.5)+geom_line(aes(y=predictedvalues3,color='predicted'),size=1.5)+ theme_dark()+labs(title = "Actual vs Predicted Total Number of House Sales")
+
+```
+
+
+```{r}
+checkresiduals(house_reg8$residuals)
+
+```
+
+
+## Prediction of April 2021 Value
+
+```{r}
+predict(house_reg8,data.frame(mon="Nis",prob=48.13,altın=464.33,sur1=70.5,sur2=55.5,faiz=18.13,unitprice=4123.2,coup=0,Corona_starting_effect=0,Corona_ongoing_effect=0))
+
+```
+
+## Conclusion
+
+In this study, a statistically acceptable model that is able to predict monthly total house sales in Turkey with minimum residual error ,maximum Adjusted R-squared and minimum p-value was obtained.With our fitted value, we predicted that our sales will be 116445.7 .
+
+
+
+
+
