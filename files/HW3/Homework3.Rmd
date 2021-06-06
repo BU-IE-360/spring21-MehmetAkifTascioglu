@@ -1,0 +1,285 @@
+---
+title: "Homework3"
+author: "Mehmet Akif Taşcıoğlu"
+date: "30 05 2021"
+output: html_document
+---
+
+```{r setup,echo=FALSE,results="hide", warning=FALSE, message=FALSE}
+library(knitr)
+library(readxl)
+library(zoo)
+library(ggplot2)
+library(data.table)
+library(forecast)
+library(lubridate)
+library(stats)
+library(urca)
+library(xts)
+opts_chunk$set(tidy.opts=list(width.cutoff=60),tidy=TRUE, warning=FALSE, message=FALSE)
+```
+
+
+## Introduction
+In this study, the aim is to transform the non-stationary electricity consumption in Turkey data to a stationary one and use it to make predictions using the transformed data.Stationary data must have non-changing mean and variance over time. For this purpose, there are many tools to use. We can use power or log transformations to prevent increasing variance. We can detrend the data using decomposition or differencing to eliminate changing means. In order to check stationarity, we can use Ljung-Box and KPSS tests.
+
+
+## Stationarity of the Data
+
+```{r}
+hourly_consumption <- read_excel("C:/Users/User/Desktop/ie360/hw3/GercekZamanliTuketim.xls")
+hourly_consumption = data.table(hourly_consumption)
+hourly_consumption$Date <- as.Date(hourly_consumption$Date, "%d.%m.%Y")
+hourly_consumption[,Consumption:=gsub('\\.', '', Consumption)]
+hourly_consumption[,Consumption:=gsub('\\,', '.', Consumption)]
+hourly_consumption[,Consumption:=as.numeric(Consumption)]
+head(hourly_consumption)
+daily_consumption=hourly_consumption[,list(mean_consumption=mean(Consumption, na.rm = T)),by=list(Date)]
+head(daily_consumption)
+str(daily_consumption)
+```
+
+
+```{r}
+ggplot(daily_consumption, aes(x=Date, y= mean_consumption)) + geom_line(color="red") + labs(title = "Daily Mean of Electricity Consumption in Turkey", x = "Date", y= "Consumption (MWh)")
+
+```
+
+Data have an obvious trend (not a linear one) over time since its mean is changing. Years are likely to have similar shapes due to yearly seasonalities which may be related to temperature and may be explained using month data. The variance also seems problematic probably due to some considerably lower consumptions on special days.As it is seen above, the mean goes up and down over time and variance is not constant at all, which are the two signs of non-stationarity.
+
+
+```{r}
+pacf(daily_consumption$mean_consumption)
+``` 
+
+There is a strong positive partial autocorrelation at lag1 and lag7. Autocorrelation at lag7 can be explained as the day of the week actually affects the consumption, such as lower consumptions on Sundays.
+
+```{r}
+
+acf(daily_consumption$mean_consumption)
+``` 
+
+The autocorrelation observed on data is too high to be stationary. Also, the pattern of the bars reflects the seasonality. As it is seen, the autocorrelation value is higher than its neighbors for lag 7, lag 14 etc. These values show that the seasonality of consumption data is weekly.For this data set, additive decomposition is prefered because the variance is not increasing over time.
+
+## Decomposing at Daily Level
+
+
+```{r}
+datats <- ts(daily_consumption$mean_consumption, start = as.Date("2016-01-01"), end = as.Date("2021-05-20"), frequency = 7)
+ts.plot(datats)
+ts_decomposed <- decompose(x = datats,type = "additive")
+plot(ts_decomposed)
+
+``` 
+
+
+```{r}
+deseasonalized<-datats-ts_decomposed$seasonal
+ts.plot(deseasonalized)
+acf(deseasonalized)
+
+``` 
+
+
+```{r}
+detrend<-deseasonalized-ts_decomposed$trend
+ts.plot(detrend)
+acf(detrend, na.action = na.pass)
+pacf(detrend,na.action = na.pass)
+
+```
+
+## Seasonal Differencing 
+
+```{r}
+daily_consumption[, WeeklyDiff := daily_consumption$mean_consumption-shift(daily_consumption$mean_consumption, 7)]
+acf(daily_consumption$WeeklyDiff,na.action = na.pass)
+```
+
+
+```{r}
+ggplot(daily_consumption, aes(x=Date, y= WeeklyDiff)) + geom_line(color="red") + labs(title = "Daily Mean of Electricity Consumption in Turkey", x = "Date", y= "Consumption (MWh)")
+
+```
+
+
+
+## Decomposing at Hourly Level
+
+```{r}
+dts <- ts(hourly_consumption$Consumption,frequency = 24)
+ts.plot(dts)
+ts_dec <- decompose(x = dts,type = "additive")
+plot(ts_dec)
+
+```
+
+```{r}
+
+deseason<-dts-ts_dec$seasonal
+ts.plot(deseason)
+acf(deseason)
+```
+
+
+```{r}
+detr<-deseason-ts_dec$trend
+ts.plot(detr)
+acf(detr, na.action = na.pass)
+pacf(detr,na.action = na.pass)
+```
+
+
+## Decomposing at Weekly Level
+
+```{r}
+weekly <- ts(hourly_consumption$Consumption,frequency = 24*7)
+ts.plot(weekly)
+weekly_dec <- decompose(x = weekly,type = "additive")
+plot(weekly_dec)
+
+```
+
+
+```{r}
+deseason<-weekly-weekly_dec$seasonal
+ts.plot(deseason)
+acf(deseason)
+```
+
+
+```{r}
+detr<-deseason-weekly_dec$trend
+ts.plot(detr)
+acf(detr, na.action = na.pass)
+pacf(detr,na.action = na.pass)
+```
+
+
+
+## AR Models
+At this point, we can try to fit an AR model to the random component. We can use several lags and determine the best in terms of AIC.
+
+```{r}
+ar1 = arima(weekly_dec$random, order = c(1,0,0))
+ar2 = arima(weekly_dec$random, order = c(2,0,0))
+ar3 = arima(weekly_dec$random, order = c(3,0,0))
+ar4 = arima(weekly_dec$random, order = c(4,0,0))
+c(ar1=AIC(ar1), ar2=AIC(ar2), ar3=AIC(ar3), ar4=AIC(ar4))
+
+```
+
+ar4 gives the best result in terms of AIC.
+
+## MA Models
+We can also try to fit an MA model.
+
+```{r}
+ma1 = arima(weekly_dec$random, order = c(0,0,1))
+ma2 = arima(weekly_dec$random, order = c(0,0,2))
+ma3 = arima(weekly_dec$random, order = c(0,0,3))
+ma4 = arima(weekly_dec$random, order = c(0,0,4))
+ma5 = arima(weekly_dec$random, order = c(0,0,5))
+c(ma1=AIC(ma1), ma2=AIC(ma2), ma3=AIC(ma3), ma4=AIC(ma4), ma5=AIC(ma5))
+
+```
+
+ma5 gives the best result in terms of AIC.If we keep increasing q value,AIC value keeps decreasing but it would be time consuming and inefficient.
+
+## ARMA Model and Prediction
+Now our model is arma with p=4 and q=5.
+
+```{r}
+model = arima(weekly_dec$random, order = c(4,0,5))
+random <- weekly_dec$random
+model_fitted <- random - residuals(model)
+model_fitted_transformed <- model_fitted+weekly_dec$trend+weekly_dec$seasonal
+
+
+plot(random)
+points(model_fitted, type = "l", col = 2, lty = 2)
+
+plot(weekly)
+points(model_fitted_transformed, type = "l", col = 2, lty = 2)
+
+```
+
+
+```{r}
+ggplot(hourly_consumption, aes(x=Date)) + 
+  geom_line(aes(y=Consumption, col="actual")) + 
+  geom_line(aes(y=model_fitted_transformed, col="fitted")) +
+    theme_bw() +
+  labs(title="Actual vs Forecasted Values ",
+       x="Time",
+       y="Consumption") 
+```
+
+```{r}
+hourly_consumption[,fitted:=model_fitted_transformed]
+ggplot(hourly_consumption[Date<="2021-05-20" & Date>="2021-05-06"], aes(x=Date)) + 
+  geom_line(aes(y=Consumption, col="actual")) + 
+  geom_line(aes(y=fitted, col="fitted")) +
+    theme_bw() +
+  labs(title="Actual vs Forecasted Values (between 6th of May and 20th of May) ",
+       x="Time",
+       y="Consumption") 
+```
+
+```{r}
+model_forecast <- predict(model, n.ahead = 336)$pred
+model_forecast=ts(model_forecast,frequency = 168,start=c(280,1))
+seasonality=weekly_dec$seasonal[1:336]
+last_trend_value <-tail(weekly_dec$trend[!is.na(weekly_dec$trend)],1)
+model_forecast=model_forecast+last_trend_value+seasonality
+
+plot(weekly)
+points(model_forecast, type = "l", col = 3)
+
+```
+
+## Evaluation of Forecast Results
+To evaluate the model, we can use daily MAPE, daily bias, and overall MAPE, bias and WMAPE.
+
+```{r}
+actual<-hourly_consumption$Consumption[46873:47208]
+test <- data.frame(actual,model_forecast)
+test<- data.table(test)
+test
+```
+
+```{r}
+test[,error:=actual-model_forecast]
+test[,bias:=error/actual]
+
+test[,daily_bias:=sum(bias)/24,by=.(Date=hourly_consumption$Date[46873:47208])]
+test[,mean:=mean(actual)]
+test[,ape:=abs(error/actual)]
+test[,daily_mape:=sum(ape)/24,by=.(Date=hourly_consumption$Date[46873:47208])]
+test
+
+```
+
+Daily bias and daily MAPE are large on some days but in general, they are small enough.
+
+## Conclusion
+
+In conclusion, we did decomposing at different levels to understand characteristics of series. Then we tried to fit a model on random component of the decomposition at frequency of 168.The best ARMA model with lowest AIC value becomes ARMA(4,5). Finally, I evaluated the model according to daily bias and daily mean absolute percentage error.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
