@@ -15,3 +15,10 @@
 ## Homework 3 (06/06/2021)
 
 [Here](files/HW3/Homework3.html) is my “Forecasting Study of Electricity Consumption Data”.
+
+## Project (02.07.2021)
+
+[Here](files/Project/projectreport.html) is our project report.
+[Here](files/Project/project.Rmd) is our project code.
+
+
